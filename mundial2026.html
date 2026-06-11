@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: transparent;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    gap: 10px;
+    font-family: 'Barlow Condensed', sans-serif;
+  }
+
+  /* ── SCOREBAR ─────────────────────────────────────────── */
+  .scorebar {
+    display: flex;
+    align-items: center;
+    height: 48px;
+    border-radius: 30px;
+    overflow: hidden;
+    border: 1.5px solid rgba(255,255,255,0.12);
+    background: rgba(10,10,14,0.94);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 4px 24px rgba(0,0,0,0.7);
+    width: fit-content;
+  }
+
+  /* home team pill */
+  .team-home, .team-away {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 18px 0 14px;
+    height: 100%;
+  }
+
+  .team-away {
+    padding: 0 14px 0 18px;
+    flex-direction: row-reverse;
+  }
+
+  .flag-img {
+    width: 26px;
+    height: 20px;
+    object-fit: cover;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .flag-fallback {
+    width: 26px;
+    height: 20px;
+    border-radius: 3px;
+    background: rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    color: rgba(255,255,255,0.5);
+    flex-shrink: 0;
+  }
+
+  .team-code {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* score block center */
+  .score-block {
+    display: flex;
+    align-items: center;
+    background: #00c8a0;
+    height: 100%;
+    padding: 0 4px;
+    gap: 0;
+    flex-shrink: 0;
+  }
+
+  .score-digit {
+    font-size: 26px;
+    font-weight: 800;
+    color: #fff;
+    width: 34px;
+    text-align: center;
+    line-height: 1;
+  }
+
+  .score-sep {
+    font-size: 22px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.5);
+    padding: 0 2px;
+    line-height: 1;
+  }
+
+  /* time block */
+  .time-block {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255,255,255,0.06);
+    border-left: 1.5px solid rgba(255,255,255,0.08);
+    height: 100%;
+    padding: 0 16px;
+    min-width: 76px;
+    flex-shrink: 0;
+  }
+
+  .time-text {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .time-text.live {
+    color: #ff4444;
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .time-text.upcoming {
+    color: rgba(255,255,255,0.55);
+    font-size: 16px;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+
+  /* divider dot between team and bar */
+  .dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.2);
+    flex-shrink: 0;
+  }
+
+  /* ── MULTI-MATCH container ─────────────────────────────── */
+  .matches-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: center;
+  }
+
+  /* ── LOADING / ERROR ───────────────────────────────────── */
+  .loader {
+    color: rgba(255,255,255,0.4);
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 20px;
+  }
+</style>
+</head>
+<body>
+
+<div class="matches-stack" id="root">
+  <div class="loader">Cargando...</div>
+</div>
+
+<script>
+const API_KEY = 'f68f534d97104f3bac77b9b1fa343c65';
+
+// Map football-data.org country name → ISO 3166-1 alpha-2
+const ISO = {
+  'Argentina':'ar','Brazil':'br','France':'fr','Germany':'de','Spain':'es',
+  'Portugal':'pt','Netherlands':'nl','England':'gb-eng','United States':'us',
+  'USA':'us','Mexico':'mx','Canada':'ca','Morocco':'ma','Senegal':'sn',
+  'Australia':'au','Japan':'jp','South Korea':'kr','Saudi Arabia':'sa',
+  'Iran':'ir','Colombia':'co','Uruguay':'uy','Chile':'cl','Ecuador':'ec',
+  'Peru':'pe','Venezuela':'ve','Paraguay':'py','Bolivia':'bo','Nigeria':'ng',
+  'Egypt':'eg','Ivory Coast':'ci','Ghana':'gh','Cameroon':'cm','Croatia':'hr',
+  'Serbia':'rs','Switzerland':'ch','Poland':'pl','Belgium':'be','Denmark':'dk',
+  'Austria':'at','Turkey':'tr','Ukraine':'ua','Slovakia':'sk','Slovenia':'si',
+  'Romania':'ro','Scotland':'gb-sct','Georgia':'ge','Albania':'al','Hungary':'hu',
+  'Italy':'it','New Zealand':'nz','Uzbekistan':'uz','Indonesia':'id','Iraq':'iq',
+  'South Africa':'za','Mozambique':'mz','Angola':'ao','Mali':'ml','Algeria':'dz',
+  'Tunisia':'tn','Palestine':'ps','Kyrgyzstan':'kg','Tajikistan':'tj',
+  'Czech Republic':'cz','Costa Rica':'cr','Panama':'pa','Honduras':'hn',
+  'El Salvador':'sv','Jamaica':'jm','Qatar':'qa','Jordan':'jo','Oman':'om',
+  'China PR':'cn','China':'cn','Congo DR':'cd','Zambia':'zm','Tanzania':'tz',
+  'Burkina Faso':'bf','Guinea':'gn','Cape Verde':'cv','Mauritania':'mr',
+};
+
+const SHORT = {
+  'Argentina':'ARG','Brazil':'BRA','France':'FRA','Germany':'GER','Spain':'ESP',
+  'Portugal':'POR','Netherlands':'NED','England':'ENG','United States':'USA',
+  'USA':'USA','Mexico':'MEX','Canada':'CAN','Morocco':'MAR','Senegal':'SEN',
+  'Australia':'AUS','Japan':'JPN','South Korea':'KOR','Saudi Arabia':'KSA',
+  'Iran':'IRN','Colombia':'COL','Uruguay':'URU','Chile':'CHI','Ecuador':'ECU',
+  'Peru':'PER','Venezuela':'VEN','Paraguay':'PAR','Bolivia':'BOL','Nigeria':'NGA',
+  'Egypt':'EGY','Ivory Coast':'CIV','Ghana':'GHA','Cameroon':'CMR','Croatia':'CRO',
+  'Serbia':'SRB','Switzerland':'SUI','Poland':'POL','Belgium':'BEL','Denmark':'DEN',
+  'Austria':'AUT','Turkey':'TUR','Ukraine':'UKR','Slovakia':'SVK','Slovenia':'SVN',
+  'Romania':'ROU','Scotland':'SCO','Georgia':'GEO','Albania':'ALB','Hungary':'HUN',
+  'Italy':'ITA','New Zealand':'NZL','Uzbekistan':'UZB','Indonesia':'IDN','Iraq':'IRQ',
+  'South Africa':'RSA','Mozambique':'MOZ','Angola':'ANG','Mali':'MLI','Algeria':'ALG',
+  'Tunisia':'TUN','Czech Republic':'CZE','Costa Rica':'CRC','Panama':'PAN',
+  'Honduras':'HON','El Salvador':'SLV','Jamaica':'JAM','Qatar':'QAT',
+  'Jordan':'JOR','China PR':'CHN','Congo DR':'COD','Zambia':'ZAM',
+  'Burkina Faso':'BFA','Guinea':'GUI','Cape Verde':'CPV',
+};
+
+function flagUrl(name) {
+  const iso = ISO[name];
+  if (!iso) return null;
+  return `https://flagcdn.com/w40/${iso}.png`;
+}
+
+function shortCode(name) {
+  if (SHORT[name]) return SHORT[name];
+  return (name || '???').slice(0,3).toUpperCase();
+}
+
+function statusOf(m) {
+  const s = (m.status || '').toUpperCase();
+  if (['IN_PLAY','PAUSED','HALFTIME'].includes(s)) return 'live';
+  if (['FINISHED','AWARDED'].includes(s)) return 'finished';
+  return 'upcoming';
+}
+
+function getMinute(m) {
+  if (m.minute) return m.minute + "'";
+  const s = (m.status || '').toUpperCase();
+  if (s === 'HALFTIME') return 'HT';
+  if (s === 'PAUSED') return 'HT';
+  return '?';
+}
+
+function argTime(iso) {
+  if (!iso) return '--:--';
+  return new Date(iso).toLocaleTimeString('es-AR', {
+    hour:'2-digit', minute:'2-digit',
+    timeZone:'America/Argentina/Buenos_Aires'
+  });
+}
+
+function isToday(iso) {
+  if (!iso) return false;
+  const d = new Date(iso);
+  return d.toDateString() === new Date().toDateString();
+}
+
+function buildBar(m) {
+  const st = statusOf(m);
+  const home = m.homeTeam || {};
+  const away = m.awayTeam || {};
+  const score = m.score || {};
+  const ft = score.fullTime || {};
+  const hg = ft.home ?? null;
+  const ag = ft.away ?? null;
+
+  function flagHtml(name) {
+    const url = flagUrl(name);
+    const code = shortCode(name).slice(0,2);
+    if (url) {
+      return `<img class="flag-img" src="${url}" alt="${name}"
+               onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+              <div class="flag-fallback" style="display:none">${code}</div>`;
+    }
+    return `<div class="flag-fallback">${code}</div>`;
+  }
+
+  // Score center color: teal for live, dark for upcoming, dim for finished
+  let scoreColor = '#00c8a0';
+  if (st === 'upcoming') scoreColor = 'rgba(255,255,255,0.07)';
+  if (st === 'finished') scoreColor = 'rgba(60,65,80,0.95)';
+
+  const scoreHtml = st === 'upcoming'
+    ? `<div class="score-block" style="background:${scoreColor}">
+         <span class="score-digit" style="color:rgba(255,255,255,0.25);font-size:14px;letter-spacing:2px">VS</span>
+       </div>`
+    : `<div class="score-block" style="background:${scoreColor}">
+         <span class="score-digit">${hg ?? 0}</span>
+         <span class="score-sep">:</span>
+         <span class="score-digit">${ag ?? 0}</span>
+       </div>`;
+
+  let timeHtml;
+  if (st === 'live') {
+    timeHtml = `<span class="time-text live">${getMinute(m)}</span>`;
+  } else if (st === 'finished') {
+    timeHtml = `<span class="time-text" style="color:rgba(255,255,255,0.3);font-size:14px">FIN</span>`;
+  } else {
+    timeHtml = `<span class="time-text upcoming">${argTime(m.utcDate)}</span>`;
+  }
+
+  return `<div class="scorebar">
+    <div class="team-home">
+      ${flagHtml(home.name)}
+      <div class="dot"></div>
+      <span class="team-code">${shortCode(home.name)}</span>
+    </div>
+    ${scoreHtml}
+    <div class="team-away">
+      ${flagHtml(away.name)}
+      <div class="dot"></div>
+      <span class="team-code">${shortCode(away.name)}</span>
+    </div>
+    <div class="time-block">${timeHtml}</div>
+  </div>`;
+}
+
+async function fetchAndRender() {
+  const root = document.getElementById('root');
+  try {
+    const res = await fetch('https://api.football-data.org/v4/competitions/WC/matches', {
+      headers: { 'X-Auth-Token': 'f68f534d97104f3bac77b9b1fa343c65' }
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const all = data.matches || [];
+
+    // Priority: live first, then today, then next upcoming
+    const live     = all.filter(m => statusOf(m) === 'live');
+    const todayM   = all.filter(m => statusOf(m) !== 'live' && isToday(m.utcDate));
+    const upcoming = all.filter(m => statusOf(m) === 'upcoming' && !isToday(m.utcDate))
+                        .sort((a,b) => new Date(a.utcDate)-new Date(b.utcDate))
+                        .slice(0, 3);
+
+    let show = [...live, ...todayM];
+    if (!show.length) show = upcoming;
+    if (!show.length) show = all.slice(0, 3);
+
+    root.innerHTML = show.map(buildBar).join('');
+  } catch(e) {
+    root.innerHTML = `<div class="loader">Error: ${e.message}</div>`;
+  }
+}
+
+fetchAndRender();
+setInterval(fetchAndRender, 30000);
+</script>
+</body>
+</html>
